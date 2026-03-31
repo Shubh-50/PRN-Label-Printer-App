@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Data.SQLite;
 using System.Windows.Forms;
 using System.IO;
 
@@ -11,21 +10,19 @@ namespace BarcodeBartenderApp
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "BarcodeApp");
 
-        private string sopFolder;
+        private string sopFolder = "";
 
         public AdminForm()
         {
             InitializeComponent();
-
             sopFolder = Path.Combine(baseFolder, "SOP");
-
             if (!Directory.Exists(sopFolder))
                 Directory.CreateDirectory(sopFolder);
 
             LoadUsers();
             LoadEmailSettings();
             LoadShiftSettings();
-            LoadPdf();
+            LoadParts();
         }
 
         // ================= USER =================
@@ -33,20 +30,8 @@ namespace BarcodeBartenderApp
         private void LoadUsers()
         {
             lstUsers.Items.Clear();
-
-            using (var con = new SQLiteConnection("Data Source=users.db"))
-            {
-                con.Open();
-
-                var cmd = new SQLiteCommand("SELECT Username FROM Users", con);
-                var reader = cmd.ExecuteReader();
-
-                while (reader.Read())
-                {
-                    string user = reader["Username"]?.ToString() ?? "";
-                    lstUsers.Items.Add(user);
-                }
-            }
+            foreach (var user in DatabaseHelper.GetUsers())
+                lstUsers.Items.Add(user);
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -60,11 +45,11 @@ namespace BarcodeBartenderApp
                 return;
             }
 
-            bool success = DatabaseHelper.AddUser(user, pass);
-
-            if (success)
+            if (DatabaseHelper.AddUser(user, pass))
             {
-                MessageBox.Show("User Added");
+                MessageBox.Show("User Added ✅");
+                txtUser.Clear();
+                txtPass.Clear();
                 LoadUsers();
             }
             else
@@ -81,66 +66,35 @@ namespace BarcodeBartenderApp
 
             if (user == "admin")
             {
-                MessageBox.Show("Admin cannot be deleted");
+                MessageBox.Show("Admin cannot be deleted ❌");
                 return;
             }
 
-            using (var con = new SQLiteConnection("Data Source=users.db"))
+            if (MessageBox.Show($"Delete user '{user}'?", "Confirm",
+                MessageBoxButtons.YesNo) == DialogResult.Yes)
             {
-                con.Open();
-
-                var cmd = new SQLiteCommand(
-                    "DELETE FROM Users WHERE Username=@u", con);
-
-                cmd.Parameters.AddWithValue("@u", user);
-                cmd.ExecuteNonQuery();
+                DatabaseHelper.DeleteUser(user);
+                MessageBox.Show("User Deleted ✅");
+                LoadUsers();
             }
-
-            MessageBox.Show("User Deleted");
-            LoadUsers();
         }
 
         // ================= EMAIL =================
 
         private void LoadEmailSettings()
         {
-            using (var con = new SQLiteConnection("Data Source=users.db"))
-            {
-                con.Open();
-
-                string query = "CREATE TABLE IF NOT EXISTS EmailSettings (Sender TEXT, Password TEXT, Receiver TEXT)";
-                new SQLiteCommand(query, con).ExecuteNonQuery();
-
-                var cmd = new SQLiteCommand("SELECT Sender, Password, Receiver FROM EmailSettings LIMIT 1", con);
-                var reader = cmd.ExecuteReader();
-
-                if (reader.Read())
-                {
-                    txtSender.Text = reader["Sender"]?.ToString() ?? "";
-                    txtPassword.Text = reader["Password"]?.ToString() ?? "";
-                    txtReceiver.Text = reader["Receiver"]?.ToString() ?? "";
-                }
-            }
+            var (sender, password, receiver) = DatabaseHelper.GetEmailSettings();
+            txtSender.Text = sender;
+            txtPassword.Text = password;
+            txtReceiver.Text = receiver;
         }
 
         private void btnSaveEmail_Click(object sender, EventArgs e)
         {
-            using (var con = new SQLiteConnection("Data Source=users.db"))
-            {
-                con.Open();
-
-                new SQLiteCommand("DELETE FROM EmailSettings", con).ExecuteNonQuery();
-
-                var cmd = new SQLiteCommand(
-                    "INSERT INTO EmailSettings(Sender,Password,Receiver) VALUES(@s,@p,@r)", con);
-
-                cmd.Parameters.AddWithValue("@s", txtSender.Text);
-                cmd.Parameters.AddWithValue("@p", txtPassword.Text);
-                cmd.Parameters.AddWithValue("@r", txtReceiver.Text);
-
-                cmd.ExecuteNonQuery();
-            }
-
+            DatabaseHelper.SaveEmailSettings(
+                txtSender.Text.Trim(),
+                txtPassword.Text.Trim(),
+                txtReceiver.Text.Trim());
             MessageBox.Show("Email Settings Saved ✅");
         }
 
@@ -149,7 +103,6 @@ namespace BarcodeBartenderApp
         private void LoadShiftSettings()
         {
             var shifts = DatabaseHelper.GetShifts();
-
             foreach (var s in shifts)
             {
                 if (s.shift == "A")
@@ -176,14 +129,11 @@ namespace BarcodeBartenderApp
             {
                 string aStart = txtAStart.Text.Replace('.', ':');
                 string aEnd = txtAEnd.Text.Replace('.', ':');
-
                 string bStart = txtBStart.Text.Replace('.', ':');
                 string bEnd = txtBEnd.Text.Replace('.', ':');
-
                 string cStart = txtCStart.Text.Replace('.', ':');
                 string cEnd = txtCEnd.Text.Replace('.', ':');
 
-                // 🔥 Validate format
                 TimeSpan.Parse(aStart);
                 TimeSpan.Parse(aEnd);
                 TimeSpan.Parse(bStart);
@@ -199,78 +149,98 @@ namespace BarcodeBartenderApp
             }
             catch
             {
-                MessageBox.Show("Enter time in HH:mm format (Example: 15:30)");
+                MessageBox.Show("Enter time in HH:mm format (Example: 06:00)");
             }
         }
 
-        // ================= PDF =================
+        // ================= PART =================
 
-        private void LoadPdf()
+        private void LoadParts()
         {
-            using (var con = new SQLiteConnection("Data Source=users.db"))
+            lstParts.Items.Clear();
+            cmbPartSop.Items.Clear();
+
+            foreach (var part in DatabaseHelper.GetParts())
             {
-                con.Open();
+                lstParts.Items.Add(part);
+                cmbPartSop.Items.Add(part);
+            }
 
-                string create = "CREATE TABLE IF NOT EXISTS PdfSettings (FilePath TEXT)";
-                new SQLiteCommand(create, con).ExecuteNonQuery();
+            if (cmbPartSop.Items.Count > 0)
+                cmbPartSop.SelectedIndex = 0;
+        }
 
-                var cmd = new SQLiteCommand("SELECT FilePath FROM PdfSettings LIMIT 1", con);
-                var reader = cmd.ExecuteReader();
+        private void btnAddPart_Click(object sender, EventArgs e)
+        {
+            string part = txtNewPart.Text.Trim();
+            if (string.IsNullOrEmpty(part))
+            {
+                MessageBox.Show("Enter part name");
+                return;
+            }
 
-                if (reader.Read())
-                {
-                    string path = reader["FilePath"]?.ToString() ?? "";
-                    lblPdfName.Text = Path.GetFileName(path);
-                }
+            if (DatabaseHelper.AddPart(part))
+            {
+                MessageBox.Show("Part Added ✅");
+                txtNewPart.Clear();
+                LoadParts();
+            }
+            else
+            {
+                MessageBox.Show("Part already exists ❌");
             }
         }
+
+        private void btnDeletePart_Click(object sender, EventArgs e)
+        {
+            if (lstParts.SelectedItem == null) return;
+
+            string part = lstParts.SelectedItem?.ToString() ?? "";
+
+            if (MessageBox.Show($"Delete part '{part}'?", "Confirm",
+                MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                DatabaseHelper.DeletePart(part);
+                MessageBox.Show("Part Deleted ✅");
+                LoadParts();
+            }
+        }
+
+        // ================= SOP PDF =================
 
         private void btnUploadPdf_Click(object sender, EventArgs e)
         {
-            // 🔥 FIX: Use local dialog (no designer dependency)
+            if (cmbPartSop.SelectedItem == null)
+            {
+                MessageBox.Show("Select a part first ❌");
+                return;
+            }
+
+            string selectedPart = cmbPartSop.SelectedItem.ToString() ?? "";
+
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "PDF Files (*.pdf)|*.pdf";
 
             if (ofd.ShowDialog() == DialogResult.OK)
             {
-                string destPath = Path.Combine(sopFolder, Path.GetFileName(ofd.FileName));
+                string destPath = Path.Combine(sopFolder,
+                    selectedPart + "_" + Path.GetFileName(ofd.FileName));
 
                 File.Copy(ofd.FileName, destPath, true);
-
-                using (var con = new SQLiteConnection("Data Source=users.db"))
-                {
-                    con.Open();
-
-                    new SQLiteCommand("DELETE FROM PdfSettings", con).ExecuteNonQuery();
-
-                    var cmd = new SQLiteCommand("INSERT INTO PdfSettings VALUES (@p)", con);
-                    cmd.Parameters.AddWithValue("@p", destPath);
-                    cmd.ExecuteNonQuery();
-                }
+                DatabaseHelper.SavePdfPath(selectedPart, destPath);
 
                 lblPdfName.Text = Path.GetFileName(destPath);
+                MessageBox.Show($"SOP uploaded for part '{selectedPart}' ✅");
 
-                MessageBox.Show("PDF Uploaded Successfully ✅");
-
-                // 🔥 INSTANT REFRESH FORM1
-                // 🔥 NEW CLEAN CODE
                 foreach (Form f in Application.OpenForms)
                 {
                     if (f is Form1 mainForm)
                     {
-                        mainForm.BeginInvoke(new Action(() =>
-                        {
-                            mainForm.LoadPDF();
-                        }));
+                        mainForm.BeginInvoke(new Action(() => mainForm.LoadPDF()));
                         break;
                     }
                 }
             }
-        }
-
-        private void label1_Click(object sender, EventArgs e)
-        {
-
         }
     }
 }

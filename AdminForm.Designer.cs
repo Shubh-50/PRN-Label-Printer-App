@@ -4,131 +4,96 @@
     {
         private System.ComponentModel.IContainer components = null;
 
-        private Panel panelUser;
-        private Panel panelEmail;
-        private Panel panelShift;
-        private Panel panelSOP;
-        private Panel panelPart;
-
-        private Label lblUserTitle;
-        private Label lblEmailTitle;
-        private Label lblShiftTitle;
-        private Label lblSOPTitle;
-        private Label lblPartTitle;
-
-        private TextBox txtUser;
-        private TextBox txtPass;
-        private Button btnAdd;
-        private Button btnDelete;
-        private ListBox lstUsers;
-
-        private TextBox txtSender;
-        private TextBox txtPassword;
-        private TextBox txtReceiver;
-        private Button btnSaveEmail;
-
-        private TextBox txtAStart, txtAEnd;
-        private TextBox txtBStart, txtBEnd;
-        private TextBox txtCStart, txtCEnd;
-        private Button btnSaveShift;
-
-        private Button btnUploadPdf;
+        private Panel panelUser, panelEmail, panelShift, panelSOP, panelPart;
+        private Label lblUserTitle, lblEmailTitle, lblShiftTitle, lblSOPTitle, lblPartTitle;
+        private TextBox txtUser, txtPass, txtSender, txtPassword, txtReceiver;
+        private TextBox txtAStart, txtAEnd, txtBStart, txtBEnd, txtCStart, txtCEnd;
+        private TextBox txtNewPart;
+        private Button btnAdd, btnDelete, btnSaveEmail, btnSaveShift;
+        private Button btnAddPart, btnDeletePart, btnUploadPdf;
+        private ListBox lstUsers, lstParts;
+        private ComboBox cmbPartSop;
         private Label lblPdfName;
 
-        private ComboBox cmbPart;
-        private Button btnAddPart;
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && components != null) components.Dispose();
+            base.Dispose(disposing);
+        }
 
         private void InitializeComponent()
         {
             this.Text = "Admin Panel";
-            this.Size = new System.Drawing.Size(1100, 700);
+            this.Size = new System.Drawing.Size(1150, 750);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.BackColor = System.Drawing.Color.FromArgb(240, 242, 245);
 
-            // ================= COMMON STYLE =================
-            System.Drawing.Color cardColor = System.Drawing.Color.White;
-            System.Drawing.Color titleColor = System.Drawing.Color.FromArgb(0, 120, 215);
+            var titleColor = System.Drawing.Color.FromArgb(0, 120, 215);
 
-            // ================= USER PANEL =================
-            panelUser = CreateCard(20, 20, 300, 250);
-            lblUserTitle = CreateTitle("User Management", titleColor);
-
-            txtUser = new TextBox() { Top = 40, Left = 20, Width = 200, PlaceholderText = "Username" };
-            txtPass = new TextBox() { Top = 80, Left = 20, Width = 200, PlaceholderText = "Password" };
-
-            btnAdd = new Button() { Text = "Add", Top = 120, Left = 20 };
+            // ===== USER PANEL =====
+            panelUser = CreateCard(20, 20, 320, 320);
+            lblUserTitle = CreateTitle("👤 User Management", titleColor);
+            txtUser = new TextBox() { Top = 45, Left = 20, Width = 270, PlaceholderText = "Username" };
+            txtPass = new TextBox() { Top = 80, Left = 20, Width = 270, PlaceholderText = "Password", PasswordChar = '*' };
+            btnAdd = CreateButton("Add User", 120, 20, System.Drawing.Color.FromArgb(40, 167, 69));
             btnAdd.Click += btnAdd_Click;
-
-            btnDelete = new Button() { Text = "Delete", Top = 120, Left = 100 };
+            btnDelete = CreateButton("Delete User", 120, 130, System.Drawing.Color.FromArgb(220, 53, 69));
             btnDelete.Click += btnDelete_Click;
-
-            lstUsers = new ListBox() { Top = 160, Left = 20, Width = 250, Height = 70 };
-
+            lstUsers = new ListBox() { Top = 165, Left = 20, Width = 270, Height = 130 };
             panelUser.Controls.AddRange(new Control[] { lblUserTitle, txtUser, txtPass, btnAdd, btnDelete, lstUsers });
 
-            // ================= EMAIL PANEL =================
-            panelEmail = CreateCard(350, 20, 300, 250);
-            lblEmailTitle = CreateTitle("Email Configuration", titleColor);
-
-            txtSender = new TextBox() { Top = 40, Left = 20, Width = 250, PlaceholderText = "Sender Email" };
-            txtPassword = new TextBox() { Top = 80, Left = 20, Width = 250, PlaceholderText = "App Password" };
-            txtReceiver = new TextBox() { Top = 120, Left = 20, Width = 250, PlaceholderText = "Receiver Email" };
-
-            btnSaveEmail = new Button() { Text = "Save Email", Top = 160, Left = 20 };
-
+            // ===== EMAIL PANEL =====
+            panelEmail = CreateCard(360, 20, 340, 200);
+            lblEmailTitle = CreateTitle("📧 Email Configuration", titleColor);
+            txtSender = new TextBox() { Top = 45, Left = 20, Width = 290, PlaceholderText = "Sender Gmail" };
+            txtPassword = new TextBox() { Top = 80, Left = 20, Width = 290, PlaceholderText = "App Password" };
+            txtReceiver = new TextBox() { Top = 115, Left = 20, Width = 290, PlaceholderText = "Receiver Email" };
+            btnSaveEmail = CreateButton("Save Email Settings", 155, 20, titleColor);
+            btnSaveEmail.Width = 200;
+            btnSaveEmail.Click += btnSaveEmail_Click;
             panelEmail.Controls.AddRange(new Control[] { lblEmailTitle, txtSender, txtPassword, txtReceiver, btnSaveEmail });
 
-            // ================= SHIFT PANEL =================
-            panelShift = CreateCard(680, 20, 350, 250);
-            lblShiftTitle = CreateTitle("Shift Management", titleColor);
+            // ===== SHIFT PANEL =====
+            panelShift = CreateCard(720, 20, 390, 320);
+            lblShiftTitle = CreateTitle("🕐 Shift Management", titleColor);
 
-            txtAStart = CreateTimeBox(40, 20);
-            txtAEnd = CreateTimeBox(40, 120);
+            panelShift.Controls.Add(lblShiftTitle);
+            AddShiftRow(panelShift, "Shift A:", 45, out txtAStart, out txtAEnd);
+            AddShiftRow(panelShift, "Shift B:", 90, out txtBStart, out txtBEnd);
+            AddShiftRow(panelShift, "Shift C:", 135, out txtCStart, out txtCEnd);
 
-            txtBStart = CreateTimeBox(80, 20);
-            txtBEnd = CreateTimeBox(80, 120);
-
-            txtCStart = CreateTimeBox(120, 20);
-            txtCEnd = CreateTimeBox(120, 120);
-
-            btnSaveShift = new Button() { Text = "Save Shift", Top = 170, Left = 20 };
+            btnSaveShift = CreateButton("Save Shifts", 180, 20, titleColor);
             btnSaveShift.Click += btnSaveShift_Click;
+            panelShift.Controls.Add(btnSaveShift);
 
-            panelShift.Controls.AddRange(new Control[]
-            {
-                lblShiftTitle, txtAStart, txtAEnd,
-                txtBStart, txtBEnd,
-                txtCStart, txtCEnd,
-                btnSaveShift
-            });
+            // ===== PART PANEL =====
+            panelPart = CreateCard(20, 360, 480, 300);
+            lblPartTitle = CreateTitle("🔩 Part Management", titleColor);
+            txtNewPart = new TextBox() { Top = 45, Left = 20, Width = 250, PlaceholderText = "New Part Name" };
+            btnAddPart = CreateButton("Add Part", 45, 285, System.Drawing.Color.FromArgb(40, 167, 69));
+            btnAddPart.Click += btnAddPart_Click;
+            btnDeletePart = CreateButton("Delete Part", 45, 390, System.Drawing.Color.FromArgb(220, 53, 69));
+            btnDeletePart.Click += btnDeletePart_Click;
+            lstParts = new ListBox() { Top = 90, Left = 20, Width = 430, Height = 190 };
+            panelPart.Controls.AddRange(new Control[] { lblPartTitle, txtNewPart, btnAddPart, btnDeletePart, lstParts });
 
-            // ================= SOP PANEL =================
-            panelSOP = CreateCard(20, 300, 500, 200);
-            lblSOPTitle = CreateTitle("SOP Management", titleColor);
+            // ===== SOP PANEL =====
+            panelSOP = CreateCard(520, 360, 600, 300);
+            lblSOPTitle = CreateTitle("📄 SOP Management (Per Part)", titleColor);
 
-            btnUploadPdf = new Button() { Text = "Upload PDF", Top = 50, Left = 20 };
+            var lblSelectPart = new Label() { Text = "Select Part:", Top = 45, Left = 20, AutoSize = true };
+            cmbPartSop = new ComboBox() { Top = 42, Left = 110, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+
+            btnUploadPdf = CreateButton("Upload PDF for Part", 80, 20, titleColor);
+            btnUploadPdf.Width = 200;
             btnUploadPdf.Click += btnUploadPdf_Click;
 
-            lblPdfName = new Label() { Top = 90, Left = 20, Width = 400 };
+            lblPdfName = new Label() { Top = 125, Left = 20, Width = 550, ForeColor = System.Drawing.Color.Gray };
 
-            panelSOP.Controls.AddRange(new Control[] { lblSOPTitle, btnUploadPdf, lblPdfName });
+            panelSOP.Controls.AddRange(new Control[] { lblSOPTitle, lblSelectPart, cmbPartSop, btnUploadPdf, lblPdfName });
 
-            // ================= PART PANEL =================
-            panelPart = CreateCard(550, 300, 480, 200);
-            lblPartTitle = CreateTitle("Part Management", titleColor);
-
-            cmbPart = new ComboBox() { Top = 50, Left = 20, Width = 200 };
-            btnAddPart = new Button() { Text = "Add Part", Top = 50, Left = 240 };
-
-            panelPart.Controls.AddRange(new Control[] { lblPartTitle, cmbPart, btnAddPart });
-
-            // ================= ADD TO FORM =================
-            Controls.Add(panelUser);
-            Controls.Add(panelEmail);
-            Controls.Add(panelShift);
-            Controls.Add(panelSOP);
-            Controls.Add(panelPart);
+            Controls.AddRange(new Control[] { panelUser, panelEmail, panelShift, panelPart, panelSOP });
         }
-
-        // ================= HELPERS =================
 
         private Panel CreateCard(int x, int y, int w, int h)
         {
@@ -149,21 +114,37 @@
             {
                 Text = text,
                 Top = 10,
-                Left = 20,
+                Left = 15,
+                AutoSize = true,
                 ForeColor = color,
                 Font = new System.Drawing.Font("Segoe UI", 10, System.Drawing.FontStyle.Bold)
             };
         }
 
-        private TextBox CreateTimeBox(int top, int left)
+        private Button CreateButton(string text, int top, int left, System.Drawing.Color backColor)
         {
-            return new TextBox()
+            return new Button
             {
+                Text = text,
                 Top = top,
                 Left = left,
-                Width = 80,
-                Text = "00:00"
+                BackColor = backColor,
+                ForeColor = System.Drawing.Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Height = 30,
+                AutoSize = true,
+                Cursor = Cursors.Hand
             };
+        }
+
+        private void AddShiftRow(Panel panel, string label, int top, out TextBox start, out TextBox end)
+        {
+            panel.Controls.Add(new Label() { Text = label, Top = top + 3, Left = 15, AutoSize = true });
+            start = new TextBox() { Top = top, Left = 80, Width = 80, Text = "00:00" };
+            end = new TextBox() { Top = top, Left = 200, Width = 80, Text = "00:00" };
+            panel.Controls.Add(new Label() { Text = "to", Top = top + 3, Left = 170, AutoSize = true });
+            panel.Controls.Add(start);
+            panel.Controls.Add(end);
         }
     }
 }

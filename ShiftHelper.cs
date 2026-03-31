@@ -4,25 +4,26 @@ public static class ShiftHelper
 {
     public static string GetCurrentShift()
     {
-        var shifts = DatabaseHelper.GetShifts();
-        TimeSpan now = DateTime.Now.TimeOfDay;
-
-        foreach (var s in shifts)
+        try
         {
-            if (s.start < s.end)
+            var shifts = DatabaseHelper.GetShifts();
+            TimeSpan now = DateTime.Now.TimeOfDay;
+
+            foreach (var s in shifts)
             {
-                // Normal shift
-                if (now >= s.start && now < s.end)
-                    return s.shift;
-            }
-            else
-            {
-                // Night shift (cross midnight)
-                if (now >= s.start || now < s.end)
-                    return s.shift;
+                if (s.start < s.end)
+                {
+                    if (now >= s.start && now < s.end)
+                        return s.shift;
+                }
+                else
+                {
+                    if (now >= s.start || now < s.end)
+                        return s.shift;
+                }
             }
         }
-
+        catch { }
         return "Unknown";
     }
 }

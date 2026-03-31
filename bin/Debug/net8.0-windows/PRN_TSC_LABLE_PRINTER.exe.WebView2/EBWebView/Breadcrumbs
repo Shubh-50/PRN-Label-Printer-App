@@ -1,72 +1,55 @@
-0:00:00 Tab1 FinishNav3
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 PDF.LoadSuccess
-0:00:08 Widget Closed: MenuHost
-0:00:08 Reload
-0:00:08 Tab1 StartNav7 #reload
-0:00:08 Tab1 FinishNav7
-0:00:08 Tab1 StartNav8 #renderer-script #auto_subframe
-0:00:08 Tab1 FinishNav8
-0:00:08 Tab1 PageLoad #pdf
-0:00:08 Tab1 PageLoad #pdf
-0:00:08 PDF.LoadSuccess
-0:05:12 Microsoft.UnloadController.IsUnclosableApp_IsNotWebApp
-0:00:00 Startup
-0:00:00 Microsoft.DeleteProfileHelper.CleanUpEphemeralProfiles
-0:00:00 Microsoft.DeleteProfileHelper.CleanUpDeletedProfiles
-0:00:00 Microsoft.NewBrowser_Popup
-0:00:00 Microsoft.BrowserList.AddBrowser
-0:00:00 Browser1 Insert active Tab1 at 0
-0:00:00 Tab1 StartNav1 #auto_toplevel
-0:00:00 Tab1 StartNav2 #typed
-0:00:00 Tab1 FinishNav1
-0:00:00 Tab1 PageLoad
-0:00:00 Tab1 FinishNav2
-0:00:00 Tab1 StartNav3 #renderer-script #auto_subframe
-0:00:00 Tab1 FinishNav3
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 PDF.LoadSuccess
-0:00:08 Widget Closed: MenuHost
-0:00:08 Reload
-0:00:08 Tab1 StartNav7 #reload
-0:00:08 Tab1 FinishNav7
-0:00:08 Tab1 StartNav8 #renderer-script #auto_subframe
-0:00:08 Tab1 FinishNav8
-0:00:08 Tab1 PageLoad #pdf
-0:00:08 Tab1 PageLoad #pdf
-0:00:08 PDF.LoadSuccess
-16:17:42 Microsoft.Shutdown.TabStripModel.SendDetachWebContentsNotifications
-0:00:00 Startup
-0:00:00 Microsoft.DeleteProfileHelper.CleanUpEphemeralProfiles
-0:00:00 Microsoft.DeleteProfileHelper.CleanUpDeletedProfiles
-0:00:00 Microsoft.NewBrowser_Popup
-0:00:00 Microsoft.BrowserList.AddBrowser
-0:00:00 Browser1 Insert active Tab1 at 0
-0:00:00 Tab1 StartNav1 #auto_toplevel
-0:00:00 Tab1 StartNav2 #typed
-0:00:00 Tab1 FinishNav1
-0:00:00 Tab1 PageLoad
-0:00:00 Tab1 FinishNav2
-0:00:00 Tab1 StartNav3 #renderer-script #auto_subframe
-0:00:00 Tab1 FinishNav3
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 Tab1 PageLoad #pdf
-0:00:00 PDF.LoadSuccess
-0:00:05 Widget Closed: MenuHost
-0:00:05 Reload
-0:00:05 Tab1 StartNav7 #reload
-0:00:05 Tab1 FinishNav7
-0:00:05 Tab1 StartNav8 #renderer-script #auto_subframe
-0:00:05 Tab1 FinishNav8
-0:00:05 Tab1 PageLoad #pdf
-0:00:05 Tab1 PageLoad #pdf
-0:00:06 PDF.LoadSuccess
-0:07:26 Tab1 StartNav12 #typed
-0:07:26 Tab1 FinishNav12
-0:07:26 Tab1 StartNav13 #renderer-script #auto_subframe
-0:07:26 Tab1 FinishNav13
-0:07:26 Tab1 PageLoad #pdf
-0:07:26 Tab1 PageLoad #pdf
-0:07:27 PDF.LoadSuccess
+0:00:20 Tab1 StartNav23 #renderer-script #auto_subframe
+0:00:20 Tab1 FinishNav23
+0:00:20 Tab1 PageLoad #pdf
+0:00:20 Tab1 PageLoad #pdf
+0:00:20 PDF.LoadSuccess
+0:00:22 Tab1 StartNav27 #typed
+0:00:22 Tab1 FinishNav27
+0:00:22 Tab1 StartNav28 #renderer-script #auto_subframe
+0:00:22 Tab1 FinishNav28
+0:00:22 Tab1 PageLoad #pdf
+0:00:22 Tab1 PageLoad #pdf
+0:00:23 PDF.LoadSuccess
+0:04:09 Tab1 StartNav32 #typed
+0:04:09 Tab1 FinishNav32 ERR_ABORTED
+0:04:09 Tab1 StartNav33 #typed
+0:04:09 Tab1 FinishNav33
+0:04:09 Tab1 StartNav34 #renderer-script #auto_subframe
+0:04:09 Tab1 FinishNav34
+0:04:09 Tab1 PageLoad #pdf
+0:04:09 Tab1 PageLoad #pdf
+0:04:09 PDF.LoadSuccess
+0:05:36 Widget Closed: MenuHost
+0:05:36 Reload
+0:05:36 Tab1 StartNav38 #reload
+0:05:36 Tab1 FinishNav38
+0:05:36 Tab1 StartNav39 #renderer-script #auto_subframe
+0:05:36 Tab1 FinishNav39
+0:05:36 Tab1 PageLoad #pdf
+0:05:36 Tab1 PageLoad #pdf
+0:05:37 PDF.LoadSuccess
+0:05:43 Widget Closed: MenuHost
+0:05:43 Reload
+0:05:43 Tab1 StartNav43 #reload
+0:05:43 Tab1 FinishNav43
+0:05:43 Tab1 StartNav44 #renderer-script #auto_subframe
+0:05:43 Tab1 FinishNav44
+0:05:43 Tab1 PageLoad #pdf
+0:05:43 Tab1 PageLoad #pdf
+0:05:43 PDF.LoadSuccess
+0:06:12 Tab1 StartNav48 #typed
+0:06:12 Tab1 FinishNav48 ERR_ABORTED
+0:06:12 Tab1 StartNav49 #typed
+0:06:12 Tab1 FinishNav49
+0:06:12 Tab1 StartNav50 #renderer-script #auto_subframe
+0:06:12 Tab1 FinishNav50
+0:06:12 Tab1 PageLoad #pdf
+0:06:12 Tab1 PageLoad #pdf
+0:06:13 PDF.LoadSuccess
+0:16:04 Microsoft.Pdf.View.Zoom.In
+0:16:04 Microsoft.Pdf.View.Zoom.Out
+0:16:05 Microsoft.Pdf.View.Zoom.In
+0:16:05 Microsoft.Pdf.View.Zoom.Out
+0:16:06 Microsoft.Pdf.View.Zoom.In
+0:16:09 Microsoft.Pdf.View.Zoom.Out
+0:16:11 Microsoft.Pdf.View.Zoom.In
