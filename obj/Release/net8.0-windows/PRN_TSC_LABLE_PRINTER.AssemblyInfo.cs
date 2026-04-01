@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PRN_TSC_LABLE_PRINTER")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9958c938d3bfb8cdc410b0b0851310b7c2aef76e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3ee22e6f9f955ddff250663b466670704ba4e137")]
 [assembly: System.Reflection.AssemblyProductAttribute("PRN_TSC_LABLE_PRINTER")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PRN_TSC_LABLE_PRINTER")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

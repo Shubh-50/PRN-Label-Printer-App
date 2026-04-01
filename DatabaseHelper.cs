@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data.SQLite;
 using System.IO;
 using System.Collections.Generic;
@@ -57,6 +57,12 @@ namespace BarcodeBartenderApp
 
                 new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS AppConfig(
                     Key TEXT PRIMARY KEY, Value TEXT)", con).ExecuteNonQuery();
+
+                // ===== PRN TABLE =====
+                new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS PartPrn(
+                    PartName TEXT PRIMARY KEY,
+                    PrnContent TEXT,
+                    PrnPath TEXT)", con).ExecuteNonQuery();
 
                 // Default admin
                 var adminCount = (long)new SQLiteCommand(
@@ -516,6 +522,46 @@ namespace BarcodeBartenderApp
                 con.Open();
                 return Convert.ToInt32(new SQLiteCommand(
                     "SELECT COUNT(*) FROM ScanLog", con).ExecuteScalar());
+            }
+        }
+
+        // ================= PRN CONFIG =================
+
+        public static string GetPrnContent(string partName)
+        {
+            using (var con = new SQLiteConnection(connectionString))
+            {
+                con.Open();
+                var cmd = new SQLiteCommand(
+                    "SELECT PrnContent FROM PartPrn WHERE PartName=@p", con);
+                cmd.Parameters.AddWithValue("@p", partName);
+                return cmd.ExecuteScalar()?.ToString() ?? "";
+            }
+        }
+
+        public static string GetPrnPath(string partName)
+        {
+            using (var con = new SQLiteConnection(connectionString))
+            {
+                con.Open();
+                var cmd = new SQLiteCommand(
+                    "SELECT PrnPath FROM PartPrn WHERE PartName=@p", con);
+                cmd.Parameters.AddWithValue("@p", partName);
+                return cmd.ExecuteScalar()?.ToString() ?? "";
+            }
+        }
+
+        public static void SavePrnConfig(string partName, string content, string path)
+        {
+            using (var con = new SQLiteConnection(connectionString))
+            {
+                con.Open();
+                var cmd = new SQLiteCommand(@"INSERT OR REPLACE INTO PartPrn
+                    (PartName, PrnContent, PrnPath) VALUES(@n,@c,@p)", con);
+                cmd.Parameters.AddWithValue("@n", partName);
+                cmd.Parameters.AddWithValue("@c", content);
+                cmd.Parameters.AddWithValue("@p", path);
+                cmd.ExecuteNonQuery();
             }
         }
     }

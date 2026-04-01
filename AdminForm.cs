@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows.Forms;
 
@@ -22,6 +22,7 @@ namespace BarcodeBartenderApp
             LoadShiftSettings();
             LoadParts();
             LoadPrinterConfig();
+            LoadPrnEditor();
         }
 
         // ===== USER =====
@@ -96,8 +97,6 @@ namespace BarcodeBartenderApp
                 else if (s.shift == "C")
                 { txtCStart.Text = s.start.ToString(@"hh\:mm"); txtCEnd.Text = s.end.ToString(@"hh\:mm"); }
             }
-
-            // Load targets
             txtTargetA.Text = DatabaseHelper.GetShiftTarget("A").ToString();
             txtTargetB.Text = DatabaseHelper.GetShiftTarget("B").ToString();
             txtTargetC.Text = DatabaseHelper.GetShiftTarget("C").ToString();
@@ -162,6 +161,7 @@ namespace BarcodeBartenderApp
                 MessageBox.Show("Part Added ✅");
                 txtNewPart.Clear();
                 LoadParts();
+                LoadPrnEditor(); // refresh PRN dropdown too
             }
             else MessageBox.Show("Part already exists ❌");
         }
@@ -176,6 +176,7 @@ namespace BarcodeBartenderApp
                 DatabaseHelper.DeletePart(part);
                 MessageBox.Show("Part Deleted ✅");
                 LoadParts();
+                LoadPrnEditor();
             }
         }
 
@@ -215,6 +216,101 @@ namespace BarcodeBartenderApp
             { MessageBox.Show("Enter printer share name"); return; }
             DatabaseHelper.SaveConfig("PrinterShareName", name);
             MessageBox.Show("Printer name saved ✅");
+        }
+
+        // ===== PRN EDITOR =====
+
+        private void LoadPrnEditor()
+        {
+            cmbPrnPart.Items.Clear();
+            foreach (var p in DatabaseHelper.GetParts())
+                cmbPrnPart.Items.Add(p);
+            if (cmbPrnPart.Items.Count > 0)
+                cmbPrnPart.SelectedIndex = 0;
+        }
+
+        private void cmbPrnPart_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string part = cmbPrnPart.SelectedItem?.ToString() ?? "";
+            if (string.IsNullOrEmpty(part)) return;
+
+            string content = DatabaseHelper.GetPrnContent(part);
+            string path = DatabaseHelper.GetPrnPath(part);
+
+            // Show default template if nothing saved yet
+            if (string.IsNullOrWhiteSpace(content))
+                content =
+                    "SIZE 24 mm,8 mm\r\n" +
+                    "GAP 1 mm,0 mm\r\n" +
+                    "CLS\r\n" +
+                    "QRCODE 5,5,L,3,A,0,\"{barcode}\"\r\n" +
+                    "TEXT 45,5,\"2\",0,1,1,\"{barcode}\"\r\n" +
+                    "TEXT 45,18,\"2\",0,1,1,\"{PartName}\"\r\n" +
+                    "TEXT 45,31,\"2\",0,1,1,\"{serialNumber}\"\r\n" +
+                    "PRINT 1\r\n";
+
+            txtPrnEditor.Text = content;
+            txtPrnPath.Text = path;
+        }
+
+        private void btnPrnLoad_Click(object sender, EventArgs e)
+        {
+            string path = txtPrnPath.Text.Trim();
+            if (string.IsNullOrEmpty(path))
+            {
+                var ofd = new OpenFileDialog { Filter = "PRN Files (*.prn)|*.prn|All Files (*.*)|*.*" };
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    txtPrnPath.Text = ofd.FileName;
+                    path = ofd.FileName;
+                }
+            }
+            if (File.Exists(path))
+            {
+                txtPrnEditor.Text = File.ReadAllText(path);
+                MessageBox.Show("PRN file loaded ✅");
+            }
+            else
+                MessageBox.Show("File not found ❌");
+        }
+
+        private void btnPrnSave_Click(object sender, EventArgs e)
+        {
+            string part = cmbPrnPart.SelectedItem?.ToString() ?? "";
+            if (string.IsNullOrEmpty(part)) { MessageBox.Show("Select a part ❌"); return; }
+
+            string content = txtPrnEditor.Text;
+            string path = txtPrnPath.Text.Trim();
+
+            if (!string.IsNullOrEmpty(path))
+            {
+                try { File.WriteAllText(path, content); }
+                catch (Exception ex) { MessageBox.Show("File save error: " + ex.Message); return; }
+            }
+
+            DatabaseHelper.SavePrnConfig(part, content, path);
+            MessageBox.Show($"PRN saved for '{part}' ✅");
+        }
+
+        // ===== MAIL & CSV (moved from Form1) =====
+
+        private void btnOpenCsv_Click(object sender, EventArgs e)
+        {
+            System.Diagnostics.Process.Start("explorer.exe", baseFolder);
+        }
+
+        private void btnTestMail_Click(object sender, EventArgs e)
+        {
+            // Get CSV path from open Form1 instance
+            string file = "";
+            foreach (Form f in Application.OpenForms)
+                if (f is Form1 mf) { file = mf.GetCsvPath(); break; }
+
+            if (string.IsNullOrEmpty(file) || !File.Exists(file))
+            { MessageBox.Show("No CSV found yet!"); return; }
+
+            EmailHelper.SendEmailAsync(file, "Test Report");
+            MessageBox.Show("Sending in background! ✅");
         }
     }
 }

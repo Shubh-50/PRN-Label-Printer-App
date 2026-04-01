@@ -1,4 +1,4 @@
-﻿namespace BarcodeBartenderApp
+namespace BarcodeBartenderApp
 {
     partial class AdminForm
     {
@@ -36,6 +36,11 @@
         private System.Windows.Forms.TextBox txtPrinterName;
         private System.Windows.Forms.Button btnSavePrinter;
 
+        // PRN Editor controls
+        private System.Windows.Forms.ComboBox cmbPrnPart;
+        private System.Windows.Forms.TextBox txtPrnEditor;
+        private System.Windows.Forms.TextBox txtPrnPath;
+
         protected override void Dispose(bool disposing)
         {
             if (disposing && components != null) components.Dispose();
@@ -45,21 +50,19 @@
         private void InitializeComponent()
         {
             this.Text = "Admin Panel — " + DatabaseHelper.AppVersion;
-            this.Size = new System.Drawing.Size(700, 520);
-            this.StartPosition =
-                System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.BackColor =
-                System.Drawing.Color.FromArgb(245, 247, 250);
+            this.Size = new System.Drawing.Size(780, 620);
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.BackColor = System.Drawing.Color.FromArgb(245, 247, 250);
 
             tabControl = new System.Windows.Forms.TabControl();
             tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             tabControl.Font = new System.Drawing.Font("Segoe UI", 10);
 
-            tabUsers = new System.Windows.Forms.TabPage("Users");
-            tabEmail = new System.Windows.Forms.TabPage("Email");
-            tabShift = new System.Windows.Forms.TabPage("Shifts & Targets");
-            tabParts = new System.Windows.Forms.TabPage("Parts");
-            tabSOP = new System.Windows.Forms.TabPage("SOP");
+            tabUsers  = new System.Windows.Forms.TabPage("Users");
+            tabEmail  = new System.Windows.Forms.TabPage("Email");
+            tabShift  = new System.Windows.Forms.TabPage("Shifts & Targets");
+            tabParts  = new System.Windows.Forms.TabPage("Parts");
+            tabSOP    = new System.Windows.Forms.TabPage("SOP");
             tabConfig = new System.Windows.Forms.TabPage("Config");
 
             tabControl.TabPages.AddRange(new System.Windows.Forms.TabPage[]
@@ -127,16 +130,16 @@
             tabShift.Controls.Add(MakeLabel("End", 240, 20));
             tabShift.Controls.Add(MakeLabel("Target (pcs)", 360, 20));
 
-            TextBox[] starts = new TextBox[3];
-            TextBox[] ends = new TextBox[3];
-            TextBox[] targets = new TextBox[3];
+            var starts  = new System.Windows.Forms.TextBox[3];
+            var ends    = new System.Windows.Forms.TextBox[3];
+            var targets = new System.Windows.Forms.TextBox[3];
 
             for (int i = 0; i < 3; i++)
             {
                 tabShift.Controls.Add(MakeLabel(headers[i], 20, tops[i] + 3));
-                starts[i] = MakeBox("00:00", 120, tops[i], 90);
-                ends[i] = MakeBox("00:00", 240, tops[i], 90);
-                targets[i] = MakeBox("0", 360, tops[i], 90);
+                starts[i]  = MakeBox("00:00", 120, tops[i], 90);
+                ends[i]    = MakeBox("00:00", 240, tops[i], 90);
+                targets[i] = MakeBox("0",     360, tops[i], 90);
                 tabShift.Controls.AddRange(new System.Windows.Forms.Control[]
                     { starts[i], ends[i], targets[i] });
             }
@@ -200,16 +203,117 @@
 
         private void BuildConfigTab()
         {
-            tabConfig.Controls.Add(MakeLabel("Printer Share Name:", 20, 20));
-            txtPrinterName = MakeBox("TSC_TE244", 20, 50, 300);
+            // ── Printer ──────────────────────────────────────────────
+            tabConfig.Controls.Add(MakeLabel("Printer Share Name:", 20, 15));
+            txtPrinterName = MakeBox("TSC_TE244", 20, 40, 300);
 
-            btnSavePrinter = MakeBtn("Save Printer Name", 20, 95,
+            btnSavePrinter = MakeBtn("Save Printer Name", 20, 78,
                 System.Drawing.Color.FromArgb(0, 120, 215));
             btnSavePrinter.Click += btnSavePrinter_Click;
             btnSavePrinter.Width = 180;
 
+            // ── PRN Editor ───────────────────────────────────────────
+            var grpPrn = new System.Windows.Forms.GroupBox();
+            grpPrn.Text = "PRN Label Editor (per Part)";
+            grpPrn.Font = new System.Drawing.Font("Segoe UI", 9, System.Drawing.FontStyle.Bold);
+            grpPrn.Location = new System.Drawing.Point(15, 125);
+            grpPrn.Size = new System.Drawing.Size(730, 330);
+            grpPrn.BackColor = System.Drawing.Color.White;
+
+            // Part selector
+            grpPrn.Controls.Add(MakeLabel("Part:", 10, 25));
+            cmbPrnPart = new System.Windows.Forms.ComboBox
+            {
+                Location = new System.Drawing.Point(60, 22),
+                Size = new System.Drawing.Size(200, 28),
+                DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList,
+                Font = new System.Drawing.Font("Segoe UI", 10)
+            };
+            cmbPrnPart.SelectedIndexChanged += cmbPrnPart_SelectedIndexChanged;
+            grpPrn.Controls.Add(cmbPrnPart);
+
+            // File path
+            grpPrn.Controls.Add(MakeLabel("File Path (optional):", 10, 60));
+            txtPrnPath = MakeBox("Optional .prn file path...", 10, 80, 490);
+            grpPrn.Controls.Add(txtPrnPath);
+
+            var btnPrnLoad = MakeBtn("📂 Load File", 510, 80,
+                System.Drawing.Color.FromArgb(23, 162, 184));
+            btnPrnLoad.Width = 120;
+            btnPrnLoad.Click += btnPrnLoad_Click;
+            grpPrn.Controls.Add(btnPrnLoad);
+
+            // PRN editor
+            grpPrn.Controls.Add(MakeLabel("PRN Content (edit below):", 10, 115));
+            txtPrnEditor = new System.Windows.Forms.TextBox
+            {
+                Multiline = true,
+                ScrollBars = System.Windows.Forms.ScrollBars.Both,
+                Font = new System.Drawing.Font("Consolas", 9.5F),
+                Location = new System.Drawing.Point(10, 135),
+                Size = new System.Drawing.Size(710, 140),
+                WordWrap = false,
+                BackColor = System.Drawing.Color.FromArgb(250, 250, 255)
+            };
+            grpPrn.Controls.Add(txtPrnEditor);
+
+            var btnPrnSave = MakeBtn("💾 Save PRN", 10, 285,
+                System.Drawing.Color.FromArgb(0, 120, 215));
+            btnPrnSave.Width = 140;
+            btnPrnSave.Click += btnPrnSave_Click;
+            grpPrn.Controls.Add(btnPrnSave);
+
+            // README hint label
+            var lblHint = new System.Windows.Forms.Label
+            {
+                Text = "Tokens: {barcode}  {PartName}  {serialNumber}  — replaced automatically on print",
+                Location = new System.Drawing.Point(160, 293),
+                AutoSize = true,
+                Font = new System.Drawing.Font("Segoe UI", 8.5F),
+                ForeColor = System.Drawing.Color.FromArgb(80, 80, 80)
+            };
+            grpPrn.Controls.Add(lblHint);
+
+            // ── PRN README ───────────────────────────────────────────
+            var grpReadme = new System.Windows.Forms.GroupBox();
+            grpReadme.Text = "PRN Command Reference";
+            grpReadme.Font = new System.Drawing.Font("Segoe UI", 9, System.Drawing.FontStyle.Bold);
+            grpReadme.Location = new System.Drawing.Point(15, 465);
+            grpReadme.Size = new System.Drawing.Size(730, 80);
+            grpReadme.BackColor = System.Drawing.Color.White;
+
+            var txtReadme = new System.Windows.Forms.TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = System.Windows.Forms.ScrollBars.Vertical,
+                Font = new System.Drawing.Font("Consolas", 8F),
+                BackColor = System.Drawing.Color.FromArgb(245, 247, 250),
+                Location = new System.Drawing.Point(8, 20),
+                Size = new System.Drawing.Size(712, 50),
+                Text =
+                    "SIZE w,h → Label size (mm)  |  GAP g,o → Gap between labels  |  CLS → Clear buffer\r\n" +
+                    "QRCODE x,y,ec,size,mode,rot,\"data\"  |  TEXT x,y,\"font\",rot,xmul,ymul,\"data\"  |  PRINT n → copies"
+            };
+            grpReadme.Controls.Add(txtReadme);
+
+            // ── Mail & CSV buttons ───────────────────────────────────
+            var btnOpenCsvAdmin = MakeBtn("📂 Open CSV Folder", 20, 555,
+                System.Drawing.Color.FromArgb(23, 162, 184));
+            btnOpenCsvAdmin.Width = 160;
+            btnOpenCsvAdmin.Click += btnOpenCsv_Click;
+
+            var btnTestMailAdmin = MakeBtn("✉ Send Test Mail", 190, 555,
+                System.Drawing.Color.FromArgb(255, 153, 0));
+            btnTestMailAdmin.Width = 155;
+            btnTestMailAdmin.Click += btnTestMail_Click;
+
             tabConfig.Controls.AddRange(new System.Windows.Forms.Control[]
-                { txtPrinterName, btnSavePrinter });
+            {
+                txtPrinterName, btnSavePrinter,
+                grpPrn, grpReadme,
+                btnOpenCsvAdmin, btnTestMailAdmin
+            });
         }
 
         // ===== HELPERS =====

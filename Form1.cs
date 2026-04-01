@@ -11,7 +11,6 @@ namespace BarcodeBartenderApp
         private string printerShareName = "";
         private string baseFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "BarcodeApp");
-        private string prnPath = "";
         private int totalCount = 0;
         private int todayCount = 0;
         private int shiftCount = 0;
@@ -28,7 +27,6 @@ namespace BarcodeBartenderApp
             InitializeComponent();
             currentUser = user;
             printerShareName = DatabaseHelper.GetConfig("PrinterShareName");
-            prnPath = Path.Combine(baseFolder, "label.prn");
             serialNumber = DatabaseHelper.GetSerial();
             timerClock.Interval = 1000;
             timerClock.Tick += TimerClock_Tick;
@@ -82,6 +80,51 @@ namespace BarcodeBartenderApp
             txtScan.Focus();
 
             await webView21.EnsureCoreWebView2Async();
+            webView21.CoreWebView2.Settings.IsZoomControlEnabled = false;
+            webView21.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+
+            // JS: Ctrl+Scroll zoom, double-click toggle, right-click drag pan
+            string js = @"
+(function(){
+    let zoomed = false;
+    let isPanning = false, startX = 0, startY = 0;
+
+    document.addEventListener('wheel', function(e){
+        if(e.ctrlKey){
+            e.preventDefault();
+            let current = parseFloat(document.body.style.zoom) || 1.0;
+            let next = e.deltaY < 0 ? current + 0.1 : current - 0.1;
+            document.body.style.zoom = Math.min(Math.max(next, 0.5), 3.0).toFixed(1);
+        }
+    }, {passive:false});
+
+    document.addEventListener('dblclick', function(){
+        zoomed = !zoomed;
+        document.body.style.zoom = zoomed ? '1.5' : '1.0';
+    });
+
+    document.addEventListener('mousedown', function(e){
+        if(e.button===2){
+            isPanning = true;
+            startX = e.clientX + window.scrollX;
+            startY = e.clientY + window.scrollY;
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('mousemove', function(e){
+        if(isPanning) window.scrollTo(startX - e.clientX, startY - e.clientY);
+    });
+    document.addEventListener('mouseup', function(e){
+        if(e.button===2) isPanning = false;
+    });
+    document.addEventListener('contextmenu', function(e){
+        e.preventDefault();
+    });
+})();
+";
+            webView21.CoreWebView2.DOMContentLoaded += async (s2, e2) =>
+                await webView21.CoreWebView2.ExecuteScriptAsync(js);
+
             this.BeginInvoke(new Action(() => LoadPDF()));
         }
 
@@ -212,7 +255,7 @@ namespace BarcodeBartenderApp
 
         // ================= CSV =================
 
-        private string GetCsvPath()
+        public string GetCsvPath()
         {
             string fileName = $"log_{currentShift}_{DateTime.Now:yyyy-MM-dd}.csv";
             return Path.Combine(baseFolder, fileName);
@@ -248,23 +291,48 @@ namespace BarcodeBartenderApp
                 if (!Directory.Exists(baseFolder))
                     Directory.CreateDirectory(baseFolder);
 
-                string prn = $@"SIZE 24 mm,8 mm
-GAP 1 mm,0 mm
-CLS
-QRCODE 5,5,L,3,A,0,""{barcode}""
-TEXT 45,5,""2"",0,1,1,""{barcode}""
-TEXT 45,18,""2"",0,1,1,""{cmbPart.Text}""
-TEXT 45,31,""2"",0,1,1,""{serialNumber}""
-PRINT 1
-";
-                File.WriteAllText(prnPath, prn);
+                string partName = cmbPart.Text.Trim();
+
+                // Load PRN content from DB
+                string prnContent = DatabaseHelper.GetPrnContent(partName);
+
+                // If no DB content, try file path
+                if (string.IsNullOrWhiteSpace(prnContent))
+                {
+                    string filePath = DatabaseHelper.GetPrnPath(partName);
+                    if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                        prnContent = File.ReadAllText(filePath);
+                }
+
+                // Fallback default template
+                if (string.IsNullOrWhiteSpace(prnContent))
+                    prnContent =
+                        "SIZE 24 mm,8 mm\r\n" +
+                        "GAP 1 mm,0 mm\r\n" +
+                        "CLS\r\n" +
+                        "QRCODE 5,5,L,3,A,0,\"{barcode}\"\r\n" +
+                        "TEXT 45,5,\"2\",0,1,1,\"{barcode}\"\r\n" +
+                        "TEXT 45,18,\"2\",0,1,1,\"{PartName}\"\r\n" +
+                        "TEXT 45,31,\"2\",0,1,1,\"{serialNumber}\"\r\n" +
+                        "PRINT 1\r\n";
+
+                // Replace dynamic tokens
+                prnContent = prnContent
+                    .Replace("{barcode}", barcode)
+                    .Replace("{PartName}", partName)
+                    .Replace("{serialNumber}", serialNumber.ToString());
+
+                string tempPrn = Path.Combine(baseFolder, "active_label.prn");
+                File.WriteAllText(tempPrn, prnContent);
+
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c copy /b \"{prnPath}\" \"\\\\localhost\\{printerShareName}\"",
+                    Arguments = $"/c copy /b \"{tempPrn}\" \"\\\\localhost\\{printerShareName}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
+
                 serialNumber++;
                 DatabaseHelper.SaveSerial(serialNumber);
             }
@@ -305,18 +373,9 @@ PRINT 1
             }
         }
 
-        private void btnOpenCsv_Click(object sender, EventArgs e)
-        {
-            Process.Start("explorer.exe", baseFolder);
-        }
-
-        private void btnTestMail_Click(object sender, EventArgs e)
-        {
-            string file = GetCsvPath();
-            if (!File.Exists(file)) { MessageBox.Show("No CSV yet!"); return; }
-            EmailHelper.SendEmailAsync(file, "Test Report");
-            MessageBox.Show("Sending in background! ✅");
-        }
+        // Moved to AdminForm — kept as stubs so designer doesn't break
+        private void btnOpenCsv_Click(object sender, EventArgs e) { }
+        private void btnTestMail_Click(object sender, EventArgs e) { }
 
         private void btnAdmin_Click(object sender, EventArgs e)
         {
@@ -330,6 +389,7 @@ PRINT 1
             admin.ShowDialog();
             LoadParts();
             LoadPDF();
+            printerShareName = DatabaseHelper.GetConfig("PrinterShareName");
             shiftTarget = DatabaseHelper.GetShiftTarget(currentShift);
             UpdateProgress();
         }
@@ -370,7 +430,6 @@ PRINT 1
 
         private void splitContainer1_Panel1_Paint(object sender, PaintEventArgs e)
         {
-
         }
     }
 }
