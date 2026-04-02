@@ -12,9 +12,10 @@ namespace BarcodeBartenderApp
             $"Data Source={dbPath};Version=3;BusyTimeout=5000;";
 
         public static string AppVersion = "v2.0";
-
+ 
         public static void Initialize()
         {
+            
             if (!File.Exists(dbPath))
                 SQLiteConnection.CreateFile(dbPath);
 
@@ -104,9 +105,11 @@ namespace BarcodeBartenderApp
                 // Default config
                 SetConfig(con, "PrinterShareName", "TSC_TE244");
                 SetConfig(con, "AppVersion", AppVersion);
+
             }
         }
 
+        
         private static void SetConfig(SQLiteConnection con, string key, string value)
         {
             var check = (long)new SQLiteCommand(
@@ -535,8 +538,26 @@ namespace BarcodeBartenderApp
                 var cmd = new SQLiteCommand(
                     "SELECT PrnContent FROM PartPrn WHERE PartName=@p", con);
                 cmd.Parameters.AddWithValue("@p", partName);
-                return cmd.ExecuteScalar()?.ToString() ?? "";
-            }
+                var result = cmd.ExecuteScalar();
+                string content = result?.ToString() ?? "";
+
+                // DEBUG
+                File.WriteAllText(
+                    Path.Combine(Environment.GetFolderPath(
+                        Environment.SpecialFolder.MyDocuments),
+                        "BarcodeApp", "debug_retrieved.txt"),
+                    content);
+
+                return content;
+            
+            //using (var con = new SQLiteConnection(connectionString))
+            //{
+            //con.Open();
+            //var cmd = new SQLiteCommand(
+            //"SELECT PrnContent FROM PartPrn WHERE PartName=@p", con);
+            //cmd.Parameters.AddWithValue("@p", partName);
+            //return cmd.ExecuteScalar()?.ToString() ?? "";
+        }
         }
 
         public static string GetPrnPath(string partName)

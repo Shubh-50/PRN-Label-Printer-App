@@ -292,38 +292,42 @@ namespace BarcodeBartenderApp
                     Directory.CreateDirectory(baseFolder);
 
                 string partName = cmbPart.Text.Trim();
-
-                // Load PRN content from DB
                 string prnContent = DatabaseHelper.GetPrnContent(partName);
+                string filePath = DatabaseHelper.GetPrnPath(partName);
 
-                // If no DB content, try file path
-                if (string.IsNullOrWhiteSpace(prnContent))
-                {
-                    string filePath = DatabaseHelper.GetPrnPath(partName);
-                    if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
-                        prnContent = File.ReadAllText(filePath);
-                }
+                if (string.IsNullOrWhiteSpace(prnContent) && File.Exists(filePath))
+                    prnContent = File.ReadAllText(filePath);
 
-                // Fallback default template
                 if (string.IsNullOrWhiteSpace(prnContent))
                     prnContent =
-                        "SIZE 24 mm,8 mm\r\n" +
-                        "GAP 1 mm,0 mm\r\n" +
+                        "SIZE 20 mm,8 mm\r\n" +
+                        "GAP 2 mm,0 mm\r\n" +
+                        "SPEED 2\r\n" +
+                        "DENSITY 10\r\n" +
+                        "DIRECTION 0,0\r\n" +
+                        "REFERENCE 0,0\r\n" +
                         "CLS\r\n" +
-                        "QRCODE 5,5,L,3,A,0,\"{barcode}\"\r\n" +
-                        "TEXT 45,5,\"2\",0,1,1,\"{barcode}\"\r\n" +
-                        "TEXT 45,18,\"2\",0,1,1,\"{PartName}\"\r\n" +
-                        "TEXT 45,31,\"2\",0,1,1,\"{serialNumber}\"\r\n" +
+                        "QRCODE 2,2,L,2,A,0,\"{barcode}\"\r\n" +
+                        "TEXT 52,0,\"1\",0,1,1,\"{barcode}\"\r\n" +
+                        "TEXT 52,16,\"1\",0,1,1,\"{PartName}\"\r\n" +
+                        "TEXT 52,32,\"1\",0,1,1,\"7810326007\"\r\n" +
+                        "TEXT 52,48,\"1\",0,1,1,\"{serialNumber}\"\r\n" +
                         "PRINT 1\r\n";
 
-                // Replace dynamic tokens
+                // DEBUG — DB content check
+                File.WriteAllText(Path.Combine(baseFolder, "debug_prn.txt"), prnContent);
+
+                // Replace tokens
                 prnContent = prnContent
                     .Replace("{barcode}", barcode)
                     .Replace("{PartName}", partName)
                     .Replace("{serialNumber}", serialNumber.ToString());
 
+                // DEBUG — final content after replace
+                File.WriteAllText(Path.Combine(baseFolder, "debug_final.txt"), prnContent);
+
                 string tempPrn = Path.Combine(baseFolder, "active_label.prn");
-                File.WriteAllText(tempPrn, prnContent);
+                File.WriteAllText(tempPrn, prnContent, System.Text.Encoding.ASCII);
 
                 Process.Start(new ProcessStartInfo
                 {
@@ -339,8 +343,7 @@ namespace BarcodeBartenderApp
             catch (Exception ex)
             {
                 MessageBox.Show("Print Error: " + ex.Message);
-                File.AppendAllText("error.log",
-                    $"[{DateTime.Now}] Print Error: {ex.Message}\n");
+                File.AppendAllText("error.log", $"[{DateTime.Now}] Print Error: {ex.Message}\n");
             }
         }
 
