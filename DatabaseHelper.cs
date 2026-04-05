@@ -7,15 +7,21 @@ namespace BarcodeBartenderApp
 {
     public static class DatabaseHelper
     {
-        private static string dbPath = "users.db";
-        private static string connectionString =
+        // Fixed: Single DB path in Documents\BarcodeApp — works same for Debug, Release, Publish
+        private static string dbPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "BarcodeApp", "users.db");
+        private static string connectionString =>
             $"Data Source={dbPath};Version=3;BusyTimeout=5000;";
 
         public static string AppVersion = "v2.0";
- 
+
         public static void Initialize()
         {
-            
+            string folder = Path.GetDirectoryName(dbPath)!;
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
+
             if (!File.Exists(dbPath))
                 SQLiteConnection.CreateFile(dbPath);
 
@@ -59,25 +65,21 @@ namespace BarcodeBartenderApp
                 new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS AppConfig(
                     Key TEXT PRIMARY KEY, Value TEXT)", con).ExecuteNonQuery();
 
-                // ===== PRN TABLE =====
                 new SQLiteCommand(@"CREATE TABLE IF NOT EXISTS PartPrn(
                     PartName TEXT PRIMARY KEY,
                     PrnContent TEXT,
                     PrnPath TEXT)", con).ExecuteNonQuery();
 
-                // Default admin
                 var adminCount = (long)new SQLiteCommand(
                     "SELECT COUNT(*) FROM Users WHERE Username='admin'", con).ExecuteScalar();
                 if (adminCount == 0)
                     new SQLiteCommand("INSERT INTO Users VALUES ('admin','1234',1)", con).ExecuteNonQuery();
 
-                // Default email
                 var emailCount = (long)new SQLiteCommand(
                     "SELECT COUNT(*) FROM EmailSettings", con).ExecuteScalar();
                 if (emailCount == 0)
                     new SQLiteCommand("INSERT INTO EmailSettings VALUES('','','')", con).ExecuteNonQuery();
 
-                // Default shifts
                 var shiftCount = (long)new SQLiteCommand(
                     "SELECT COUNT(*) FROM ShiftSettings", con).ExecuteScalar();
                 if (shiftCount == 0)
@@ -86,38 +88,31 @@ namespace BarcodeBartenderApp
                         ('B','14:00','22:00'),
                         ('C','22:00','06:00')", con).ExecuteNonQuery();
 
-                // Default serial
                 var serialCount = (long)new SQLiteCommand(
                     "SELECT COUNT(*) FROM SerialSettings", con).ExecuteScalar();
                 if (serialCount == 0)
                     new SQLiteCommand("INSERT INTO SerialSettings VALUES(1,500)", con).ExecuteNonQuery();
 
-                // Default targets
                 foreach (var s in new[] { "A", "B", "C" })
                 {
                     var tc = (long)new SQLiteCommand(
                         $"SELECT COUNT(*) FROM ShiftTarget WHERE Shift='{s}'", con).ExecuteScalar();
                     if (tc == 0)
-                        new SQLiteCommand(
-                            $"INSERT INTO ShiftTarget VALUES('{s}',0)", con).ExecuteNonQuery();
+                        new SQLiteCommand($"INSERT INTO ShiftTarget VALUES('{s}',0)", con).ExecuteNonQuery();
                 }
 
-                // Default config
                 SetConfig(con, "PrinterShareName", "TSC_TE244");
                 SetConfig(con, "AppVersion", AppVersion);
-
             }
         }
 
-        
         private static void SetConfig(SQLiteConnection con, string key, string value)
         {
             var check = (long)new SQLiteCommand(
                 $"SELECT COUNT(*) FROM AppConfig WHERE Key='{key}'", con).ExecuteScalar();
             if (check == 0)
             {
-                var cmd = new SQLiteCommand(
-                    "INSERT INTO AppConfig VALUES(@k,@v)", con);
+                var cmd = new SQLiteCommand("INSERT INTO AppConfig VALUES(@k,@v)", con);
                 cmd.Parameters.AddWithValue("@k", key);
                 cmd.Parameters.AddWithValue("@v", value);
                 cmd.ExecuteNonQuery();
@@ -129,11 +124,9 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "SELECT Value FROM AppConfig WHERE Key=@k", con);
+                var cmd = new SQLiteCommand("SELECT Value FROM AppConfig WHERE Key=@k", con);
                 cmd.Parameters.AddWithValue("@k", key);
-                var result = cmd.ExecuteScalar();
-                return result?.ToString() ?? "";
+                return cmd.ExecuteScalar()?.ToString() ?? "";
             }
         }
 
@@ -142,8 +135,7 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "INSERT OR REPLACE INTO AppConfig VALUES(@k,@v)", con);
+                var cmd = new SQLiteCommand("INSERT OR REPLACE INTO AppConfig VALUES(@k,@v)", con);
                 cmd.Parameters.AddWithValue("@k", key);
                 cmd.Parameters.AddWithValue("@v", value);
                 cmd.ExecuteNonQuery();
@@ -152,15 +144,11 @@ namespace BarcodeBartenderApp
 
         private static void MigratePdfSettings(SQLiteConnection con)
         {
-            try
-            {
-                new SQLiteCommand("SELECT PartName FROM PdfSettings LIMIT 1", con).ExecuteScalar();
-            }
+            try { new SQLiteCommand("SELECT PartName FROM PdfSettings LIMIT 1", con).ExecuteScalar(); }
             catch
             {
                 new SQLiteCommand("DROP TABLE IF EXISTS PdfSettings", con).ExecuteNonQuery();
-                new SQLiteCommand(@"CREATE TABLE PdfSettings(
-                    PartName TEXT, FilePath TEXT)", con).ExecuteNonQuery();
+                new SQLiteCommand(@"CREATE TABLE PdfSettings(PartName TEXT, FilePath TEXT)", con).ExecuteNonQuery();
             }
         }
 
@@ -237,10 +225,8 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var reader = new SQLiteCommand(
-                    "SELECT Username FROM Users", con).ExecuteReader();
-                while (reader.Read())
-                    list.Add(reader["Username"]?.ToString() ?? "");
+                var reader = new SQLiteCommand("SELECT Username FROM Users", con).ExecuteReader();
+                while (reader.Read()) list.Add(reader["Username"]?.ToString() ?? "");
             }
             return list;
         }
@@ -253,10 +239,8 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var reader = new SQLiteCommand(
-                    "SELECT PartName FROM Parts", con).ExecuteReader();
-                while (reader.Read())
-                    list.Add(reader["PartName"]?.ToString() ?? "");
+                var reader = new SQLiteCommand("SELECT PartName FROM Parts", con).ExecuteReader();
+                while (reader.Read()) list.Add(reader["PartName"]?.ToString() ?? "");
             }
             return list;
         }
@@ -282,8 +266,7 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "DELETE FROM Parts WHERE PartName=@p", con);
+                var cmd = new SQLiteCommand("DELETE FROM Parts WHERE PartName=@p", con);
                 cmd.Parameters.AddWithValue("@p", part);
                 cmd.ExecuteNonQuery();
             }
@@ -329,8 +312,7 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var reader = new SQLiteCommand(
-                    "SELECT * FROM ShiftSettings", con).ExecuteReader();
+                var reader = new SQLiteCommand("SELECT * FROM ShiftSettings", con).ExecuteReader();
                 while (reader.Read())
                 {
                     string shift = reader["ShiftName"]?.ToString() ?? "";
@@ -363,8 +345,7 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "SELECT Target FROM ShiftTarget WHERE Shift=@s", con);
+                var cmd = new SQLiteCommand("SELECT Target FROM ShiftTarget WHERE Shift=@s", con);
                 cmd.Parameters.AddWithValue("@s", shift);
                 var result = cmd.ExecuteScalar();
                 return result != null ? Convert.ToInt32(result) : 0;
@@ -376,8 +357,7 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "INSERT OR REPLACE INTO ShiftTarget VALUES(@s,@t)", con);
+                var cmd = new SQLiteCommand("INSERT OR REPLACE INTO ShiftTarget VALUES(@s,@t)", con);
                 cmd.Parameters.AddWithValue("@s", shift);
                 cmd.Parameters.AddWithValue("@t", target);
                 cmd.ExecuteNonQuery();
@@ -399,10 +379,7 @@ namespace BarcodeBartenderApp
                     cmd.Parameters.AddWithValue("@p", partName);
                 }
                 else
-                {
-                    cmd = new SQLiteCommand(
-                        "SELECT FilePath FROM PdfSettings LIMIT 1", con);
-                }
+                    cmd = new SQLiteCommand("SELECT FilePath FROM PdfSettings LIMIT 1", con);
                 return cmd.ExecuteScalar()?.ToString() ?? "";
             }
         }
@@ -412,11 +389,9 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var check = new SQLiteCommand(
-                    "SELECT COUNT(*) FROM PdfSettings WHERE PartName=@p", con);
+                var check = new SQLiteCommand("SELECT COUNT(*) FROM PdfSettings WHERE PartName=@p", con);
                 check.Parameters.AddWithValue("@p", partName);
                 long count = (long)check.ExecuteScalar();
-
                 if (count > 0)
                 {
                     var update = new SQLiteCommand(
@@ -427,8 +402,7 @@ namespace BarcodeBartenderApp
                 }
                 else
                 {
-                    var insert = new SQLiteCommand(
-                        "INSERT INTO PdfSettings VALUES(@p,@f)", con);
+                    var insert = new SQLiteCommand("INSERT INTO PdfSettings VALUES(@p,@f)", con);
                     insert.Parameters.AddWithValue("@p", partName);
                     insert.Parameters.AddWithValue("@f", filePath);
                     insert.ExecuteNonQuery();
@@ -500,9 +474,8 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
-                var cmd = new SQLiteCommand(
-                    "SELECT COUNT(*) FROM ScanLog WHERE DATE(DateTime)=DATE('now')", con);
-                return Convert.ToInt32(cmd.ExecuteScalar());
+                return Convert.ToInt32(new SQLiteCommand(
+                    "SELECT COUNT(*) FROM ScanLog WHERE DATE(DateTime)=DATE('now')", con).ExecuteScalar());
             }
         }
 
@@ -538,26 +511,12 @@ namespace BarcodeBartenderApp
                 var cmd = new SQLiteCommand(
                     "SELECT PrnContent FROM PartPrn WHERE PartName=@p", con);
                 cmd.Parameters.AddWithValue("@p", partName);
-                var result = cmd.ExecuteScalar();
-                string content = result?.ToString() ?? "";
-
-                // DEBUG
-                File.WriteAllText(
-                    Path.Combine(Environment.GetFolderPath(
-                        Environment.SpecialFolder.MyDocuments),
-                        "BarcodeApp", "debug_retrieved.txt"),
-                    content);
-
+                string content = cmd.ExecuteScalar()?.ToString() ?? "";
+                // Normalize line endings on read
+                if (!string.IsNullOrEmpty(content))
+                    content = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
                 return content;
-            
-            //using (var con = new SQLiteConnection(connectionString))
-            //{
-            //con.Open();
-            //var cmd = new SQLiteCommand(
-            //"SELECT PrnContent FROM PartPrn WHERE PartName=@p", con);
-            //cmd.Parameters.AddWithValue("@p", partName);
-            //return cmd.ExecuteScalar()?.ToString() ?? "";
-        }
+            }
         }
 
         public static string GetPrnPath(string partName)
@@ -577,6 +536,9 @@ namespace BarcodeBartenderApp
             using (var con = new SQLiteConnection(connectionString))
             {
                 con.Open();
+                // Normalize line endings before saving
+                if (!string.IsNullOrEmpty(content))
+                    content = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
                 var cmd = new SQLiteCommand(@"INSERT OR REPLACE INTO PartPrn
                     (PartName, PrnContent, PrnPath) VALUES(@n,@c,@p)", con);
                 cmd.Parameters.AddWithValue("@n", partName);

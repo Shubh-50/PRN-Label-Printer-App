@@ -129,6 +129,14 @@ namespace BarcodeBartenderApp
                 DatabaseHelper.SaveShiftTarget("B", tB);
                 DatabaseHelper.SaveShiftTarget("C", tC);
 
+                // FIX 3: Notify Form1 to refresh shift target immediately after save
+                foreach (Form f in Application.OpenForms)
+                    if (f is Form1 mf)
+                    {
+                        mf.BeginInvoke(new Action(() => mf.RefreshShiftTarget()));
+                        break;
+                    }
+
                 MessageBox.Show("Shift settings saved ✅");
             }
             catch
@@ -161,7 +169,7 @@ namespace BarcodeBartenderApp
                 MessageBox.Show("Part Added ✅");
                 txtNewPart.Clear();
                 LoadParts();
-                LoadPrnEditor(); // refresh PRN dropdown too
+                LoadPrnEditor();
             }
             else MessageBox.Show("Part already exists ❌");
         }
@@ -225,8 +233,15 @@ namespace BarcodeBartenderApp
             cmbPrnPart.Items.Clear();
             foreach (var p in DatabaseHelper.GetParts())
                 cmbPrnPart.Items.Add(p);
+
             if (cmbPrnPart.Items.Count > 0)
                 cmbPrnPart.SelectedIndex = 0;
+            // FIX 2: Manually trigger load since SelectedIndex=0 may not fire if already 0
+            else
+            {
+                txtPrnEditor.Text = "";
+                txtPrnPath.Text = "";
+            }
         }
 
         private void cmbPrnPart_SelectedIndexChanged(object sender, EventArgs e)
@@ -234,20 +249,14 @@ namespace BarcodeBartenderApp
             string part = cmbPrnPart.SelectedItem?.ToString() ?? "";
             if (string.IsNullOrEmpty(part)) return;
 
+            // FIX 2: Always load from DB — show empty editor if no PRN saved yet
             string content = DatabaseHelper.GetPrnContent(part);
             string path = DatabaseHelper.GetPrnPath(part);
 
-            // Show default template if nothing saved yet
+            // If nothing saved yet, show blank with placeholder comment
             if (string.IsNullOrWhiteSpace(content))
-                content =
-                    "SIZE 24 mm,8 mm\r\n" +
-                    "GAP 1 mm,0 mm\r\n" +
-                    "CLS\r\n" +
-                    "QRCODE 5,5,L,3,A,0,\"{barcode}\"\r\n" +
-                    "TEXT 45,5,\"2\",0,1,1,\"{barcode}\"\r\n" +
-                    "TEXT 45,18,\"2\",0,1,1,\"{PartName}\"\r\n" +
-                    "TEXT 45,31,\"2\",0,1,1,\"{serialNumber}\"\r\n" +
-                    "PRINT 1\r\n";
+                content = $"// No PRN configured for '{part}' yet.\r\n" +
+                           "// Write or load a PRN file, then click Save.\r\n";
 
             txtPrnEditor.Text = content;
             txtPrnPath.Text = path;
@@ -258,7 +267,8 @@ namespace BarcodeBartenderApp
             string path = txtPrnPath.Text.Trim();
             if (string.IsNullOrEmpty(path))
             {
-                var ofd = new OpenFileDialog { Filter = "PRN Files (*.prn)|*.prn|All Files (*.*)|*.*" };
+                var ofd = new OpenFileDialog
+                { Filter = "PRN Files (*.prn)|*.prn|All Files (*.*)|*.*" };
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
                     txtPrnPath.Text = ofd.FileName;
@@ -267,7 +277,7 @@ namespace BarcodeBartenderApp
             }
             if (File.Exists(path))
             {
-                txtPrnEditor.Text = File.ReadAllText(path);
+                txtPrnEditor.Text = File.ReadAllText(path, System.Text.Encoding.ASCII);
                 MessageBox.Show("PRN file loaded ✅");
             }
             else
@@ -279,20 +289,35 @@ namespace BarcodeBartenderApp
             string part = cmbPrnPart.SelectedItem?.ToString() ?? "";
             if (string.IsNullOrEmpty(part)) { MessageBox.Show("Select a part ❌"); return; }
 
-            string content = txtPrnEditor.Text;
+            // Strip placeholder comment lines before saving
+            var lines = txtPrnEditor.Text
+                .Replace("\r\n", "\n").Replace("\r", "\n")
+                .Split('\n');
+            string content = string.Join("\r\n",
+                System.Linq.Enumerable.Where(lines,
+                    l => !l.TrimStart().StartsWith("//"))) + "\r\n";
+
+            // Normalize line endings
+            content = content
+                .Replace("\r\n", "\n").Replace("\r", "\n")
+                .Replace("\n", "\r\n");
+
             string path = txtPrnPath.Text.Trim();
 
             if (!string.IsNullOrEmpty(path))
             {
-                try { File.WriteAllText(path, content); }
+                try { File.WriteAllText(path, content, System.Text.Encoding.ASCII); }
                 catch (Exception ex) { MessageBox.Show("File save error: " + ex.Message); return; }
             }
 
             DatabaseHelper.SavePrnConfig(part, content, path);
             MessageBox.Show($"PRN saved for '{part}' ✅");
+
+            // FIX 2: Reload editor to confirm what was saved
+            txtPrnEditor.Text = DatabaseHelper.GetPrnContent(part);
         }
 
-        // ===== MAIL & CSV (moved from Form1) =====
+        // ===== MAIL & CSV =====
 
         private void btnOpenCsv_Click(object sender, EventArgs e)
         {
@@ -301,7 +326,6 @@ namespace BarcodeBartenderApp
 
         private void btnTestMail_Click(object sender, EventArgs e)
         {
-            // Get CSV path from open Form1 instance
             string file = "";
             foreach (Form f in Application.OpenForms)
                 if (f is Form1 mf) { file = mf.GetCsvPath(); break; }

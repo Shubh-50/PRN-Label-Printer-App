@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Media;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace BarcodeBartenderApp
@@ -19,7 +23,10 @@ namespace BarcodeBartenderApp
         private string currentUser = "";
         private string currentShift = "";
         private string lastShift = "";
-        private bool shiftMailSent = false;
+
+        // FIX 4: Track last shift for mail — only send on actual shift boundary, never on load
+        private string mailSentForShift = "";
+
         private System.Windows.Forms.Timer timerClock = new System.Windows.Forms.Timer();
 
         public Form1(string user)
@@ -37,20 +44,34 @@ namespace BarcodeBartenderApp
         {
             lblDateTime.Text = DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss");
             string newShift = ShiftHelper.GetCurrentShift();
+
             if (newShift != lastShift)
             {
+                // FIX 4: Only send mail when shift actually changes AND we haven't
+                //         already sent for this shift boundary (not on first load)
+                if (!string.IsNullOrEmpty(lastShift) && mailSentForShift != newShift)
+                {
+                    SendShiftReport();
+                    mailSentForShift = newShift;
+                }
+
                 lastShift = newShift;
+                currentShift = newShift;
                 lblShift.Text = "Shift: " + newShift;
-                shiftMailSent = false;
+
+                // FIX 3: Reload count AND target fresh from DB on shift change
                 shiftCount = DatabaseHelper.GetShiftCount(newShift);
                 shiftTarget = DatabaseHelper.GetShiftTarget(newShift);
                 UpdateProgress();
             }
-            if (!shiftMailSent)
-            {
-                SendShiftReport();
-                shiftMailSent = true;
-            }
+        }
+
+        // FIX 3: Public method so AdminForm can trigger refresh after saving targets
+        public void RefreshShiftTarget()
+        {
+            shiftTarget = DatabaseHelper.GetShiftTarget(currentShift);
+            shiftCount = DatabaseHelper.GetShiftCount(currentShift);
+            UpdateProgress();
         }
 
         private async void Form1_Load(object sender, EventArgs e)
@@ -67,6 +88,11 @@ namespace BarcodeBartenderApp
             todayCount = DatabaseHelper.GetTodayCount();
             currentShift = ShiftHelper.GetCurrentShift();
             lastShift = currentShift;
+
+            // FIX 4: Mark current shift as already handled so timer doesn't
+            //         fire mail immediately on first tick
+            mailSentForShift = currentShift;
+
             shiftCount = DatabaseHelper.GetShiftCount(currentShift);
             shiftTarget = DatabaseHelper.GetShiftTarget(currentShift);
 
@@ -76,14 +102,12 @@ namespace BarcodeBartenderApp
 
             UpdateProgress();
             LoadParts();
-
             txtScan.Focus();
 
             await webView21.EnsureCoreWebView2Async();
             webView21.CoreWebView2.Settings.IsZoomControlEnabled = false;
             webView21.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
 
-            // JS: Ctrl+Scroll zoom, double-click toggle, right-click drag pan
             string js = @"
 (function(){
     let zoomed = false;
@@ -130,12 +154,19 @@ namespace BarcodeBartenderApp
 
         // ================= PARTS =================
 
-        private void LoadParts()
+        public void LoadParts()
         {
+            // FIX 1: Preserve currently selected part before reload
+            string previousPart = cmbPart.SelectedItem?.ToString() ?? "";
+
             cmbPart.Items.Clear();
             foreach (var part in DatabaseHelper.GetParts())
                 cmbPart.Items.Add(part);
-            if (cmbPart.Items.Count > 0)
+
+            // FIX 1: Restore previous selection; fall back to index 0 only if not found
+            if (!string.IsNullOrEmpty(previousPart) && cmbPart.Items.Contains(previousPart))
+                cmbPart.SelectedItem = previousPart;
+            else if (cmbPart.Items.Count > 0)
                 cmbPart.SelectedIndex = 0;
         }
 
@@ -245,10 +276,8 @@ namespace BarcodeBartenderApp
         {
             try
             {
-                if (isReprint)
-                    SystemSounds.Exclamation.Play();
-                else
-                    SystemSounds.Beep.Play();
+                if (isReprint) SystemSounds.Exclamation.Play();
+                else SystemSounds.Beep.Play();
             }
             catch { }
         }
@@ -267,8 +296,7 @@ namespace BarcodeBartenderApp
             {
                 string file = GetCsvPath();
                 if (!File.Exists(file))
-                    File.WriteAllText(file,
-                        "SrNo,DateTime,Barcode,Part,User,Shift,Reprint,Reason\n");
+                    File.WriteAllText(file, "SrNo,DateTime,Barcode,Part,User,Shift,Reprint,Reason\n");
                 int sr = File.ReadAllLines(file).Length;
                 using (var sw = new StreamWriter(file, true))
                     sw.WriteLine(
@@ -282,6 +310,74 @@ namespace BarcodeBartenderApp
             }
         }
 
+        // ================= MULTILINE TEXT HELPERS =================
+
+        private static IEnumerable<string> SplitIntoChunks(string str, int chunkSize)
+        {
+            for (int i = 0; i < str.Length; i += chunkSize)
+                yield return str.Substring(i, Math.Min(chunkSize, str.Length - i));
+        }
+
+        private static string BuildMultilineTextCommands(
+            string fullString, int x, int startY, int lineHeight,
+            string font, int rotation, int xMul, int yMul, int chunkSize)
+        {
+            var sb = new StringBuilder();
+            int y = startY;
+            var chunks = SplitIntoChunks(fullString, chunkSize).ToList();
+
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                string chunk = chunks[i];
+                int lineX = x;
+
+                // FIX: Center last line if shorter than full chunk width
+                if (i == chunks.Count - 1 && chunk.Length < chunkSize)
+                {
+                    // TSPL char widths per font at XM=1: font 1=8, font 2=10, font 3=12
+                    int charWidth = font == "1" ? 8 : font == "2" ? 10 : 12;
+                    charWidth *= xMul; // scale by multiplier
+                    int fullW = chunkSize * charWidth;
+                    int lastW = chunk.Length * charWidth;
+                    lineX = x + (fullW - lastW) / 2;
+                }
+
+                sb.Append($"TEXT {lineX},{y},\"{font}\",{rotation},{xMul},{yMul},\"{chunk}\"\r\n");
+                y += lineHeight;
+            }
+
+            return sb.ToString();
+        }
+
+        // Parse and replace {MULTILINE_TEXT:X=,Y=,LH=,CS=,FONT=,ROT=,XM=,YM=} tokens
+        private static string ResolveMultilineTokens(string prnContent, string barcode)
+        {
+            var pattern = new Regex(@"\{MULTILINE_TEXT:([^}]+)\}", RegexOptions.IgnoreCase);
+
+            return pattern.Replace(prnContent, match =>
+            {
+                var args = match.Groups[1].Value
+                    .Split(',')
+                    .Select(p => p.Trim().Split('='))
+                    .Where(p => p.Length == 2)
+                    .ToDictionary(
+                        p => p[0].Trim().ToUpper(),
+                        p => p[1].Trim(),
+                        StringComparer.OrdinalIgnoreCase);
+
+                int x = args.TryGetValue("X", out var vx) && int.TryParse(vx, out var ix) ? ix : 10;
+                int y = args.TryGetValue("Y", out var vy) && int.TryParse(vy, out var iy) ? iy : 50;
+                int lh = args.TryGetValue("LH", out var vlh) && int.TryParse(vlh, out var ilh) ? ilh : 25;
+                int cs = args.TryGetValue("CS", out var vcs) && int.TryParse(vcs, out var ics) ? ics : 10;
+                int rot = args.TryGetValue("ROT", out var vr) && int.TryParse(vr, out var ir) ? ir : 0;
+                int xm = args.TryGetValue("XM", out var vxm) && int.TryParse(vxm, out var ixm) ? ixm : 1;
+                int ym = args.TryGetValue("YM", out var vym) && int.TryParse(vym, out var iym) ? iym : 1;
+                string font = args.TryGetValue("FONT", out var vf) ? vf : "3";
+
+                return BuildMultilineTextCommands(barcode, x, y, lh, font, rot, xm, ym, cs);
+            });
+        }
+
         // ================= PRINT =================
 
         private void PrintLabel(string barcode)
@@ -292,50 +388,63 @@ namespace BarcodeBartenderApp
                     Directory.CreateDirectory(baseFolder);
 
                 string partName = cmbPart.Text.Trim();
+
+                // Priority 1: DB content
                 string prnContent = DatabaseHelper.GetPrnContent(partName);
-                string filePath = DatabaseHelper.GetPrnPath(partName);
 
-                if (string.IsNullOrWhiteSpace(prnContent) && File.Exists(filePath))
-                    prnContent = File.ReadAllText(filePath);
-
+                // Priority 2: File path
                 if (string.IsNullOrWhiteSpace(prnContent))
-                    prnContent =
-                        "SIZE 20 mm,8 mm\r\n" +
-                        "GAP 2 mm,0 mm\r\n" +
-                        "SPEED 2\r\n" +
-                        "DENSITY 10\r\n" +
-                        "DIRECTION 0,0\r\n" +
-                        "REFERENCE 0,0\r\n" +
-                        "CLS\r\n" +
-                        "QRCODE 2,2,L,2,A,0,\"{barcode}\"\r\n" +
-                        "TEXT 52,0,\"1\",0,1,1,\"{barcode}\"\r\n" +
-                        "TEXT 52,16,\"1\",0,1,1,\"{PartName}\"\r\n" +
-                        "TEXT 52,32,\"1\",0,1,1,\"7810326007\"\r\n" +
-                        "TEXT 52,48,\"1\",0,1,1,\"{serialNumber}\"\r\n" +
-                        "PRINT 1\r\n";
+                {
+                    string filePath = DatabaseHelper.GetPrnPath(partName);
+                    if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                        prnContent = File.ReadAllText(filePath, Encoding.ASCII);
+                }
 
-                // DEBUG — DB content check
-                File.WriteAllText(Path.Combine(baseFolder, "debug_prn.txt"), prnContent);
+                // Strip // comments
+                if (!string.IsNullOrWhiteSpace(prnContent))
+                {
+                    prnContent = string.Join("\r\n",
+                        prnContent
+                            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                            .Where(line => !line.TrimStart().StartsWith("//"))
+                    ) + "\r\n";
+                }
 
-                // Replace tokens
+                // No valid PRN — block print
+                if (string.IsNullOrWhiteSpace(prnContent?.Replace("\r\n", "").Trim()))
+                {
+                    MessageBox.Show(
+                        $"No PRN configured for part '{partName}'!\nPlease set PRN in Admin → Config → PRN Editor.",
+                        "PRN Not Found",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Replace standard tokens
                 prnContent = prnContent
                     .Replace("{barcode}", barcode)
                     .Replace("{PartName}", partName)
                     .Replace("{serialNumber}", serialNumber.ToString());
 
-                // DEBUG — final content after replace
-                File.WriteAllText(Path.Combine(baseFolder, "debug_final.txt"), prnContent);
+                // Resolve per-part multiline TEXT tokens
+                prnContent = ResolveMultilineTokens(prnContent, barcode);
 
+                // Write as ASCII
                 string tempPrn = Path.Combine(baseFolder, "active_label.prn");
-                File.WriteAllText(tempPrn, prnContent, System.Text.Encoding.ASCII);
+                File.WriteAllText(tempPrn, prnContent, Encoding.ASCII);
 
-                Process.Start(new ProcessStartInfo
+                // Send to printer
+                var psi = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
                     Arguments = $"/c copy /b \"{tempPrn}\" \"\\\\localhost\\{printerShareName}\"",
                     UseShellExecute = false,
-                    CreateNoWindow = true
-                });
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var proc = Process.Start(psi);
+                proc?.WaitForExit(3000);
 
                 serialNumber++;
                 DatabaseHelper.SaveSerial(serialNumber);
@@ -376,7 +485,6 @@ namespace BarcodeBartenderApp
             }
         }
 
-        // Moved to AdminForm — kept as stubs so designer doesn't break
         private void btnOpenCsv_Click(object sender, EventArgs e) { }
         private void btnTestMail_Click(object sender, EventArgs e) { }
 
@@ -390,9 +498,13 @@ namespace BarcodeBartenderApp
             }
             var admin = new AdminForm();
             admin.ShowDialog();
+
+            // FIX 1: LoadParts preserves selection internally
             LoadParts();
             LoadPDF();
             printerShareName = DatabaseHelper.GetConfig("PrinterShareName");
+
+            // FIX 3: Refresh target in case admin changed it without clicking Save Shift
             shiftTarget = DatabaseHelper.GetShiftTarget(currentShift);
             UpdateProgress();
         }
@@ -402,6 +514,7 @@ namespace BarcodeBartenderApp
             if (MessageBox.Show("Are you sure you want to logout?", "Confirm Logout",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
+                // FIX 4: Logout mail — always send
                 EmailHelper.SendEmailAsync(GetCsvPath(),
                     $"Logout Report — {currentUser} — {DateTime.Now:dd-MM-yyyy HH:mm}");
                 timerClock.Stop();
@@ -416,10 +529,7 @@ namespace BarcodeBartenderApp
             }
         }
 
-        private void cmbPart_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            LoadPDF();
-        }
+        private void cmbPart_SelectedIndexChanged(object sender, EventArgs e) { LoadPDF(); }
 
         private void btnZoomIn_Click(object sender, EventArgs e)
         {
@@ -431,8 +541,6 @@ namespace BarcodeBartenderApp
             webView21.ZoomFactor = Math.Max(webView21.ZoomFactor - 0.1, 0.5);
         }
 
-        private void splitContainer1_Panel1_Paint(object sender, PaintEventArgs e)
-        {
-        }
+        private void splitContainer1_Panel1_Paint(object sender, PaintEventArgs e) { }
     }
 }
