@@ -3,41 +3,52 @@ using System.IO;
 using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace BarcodeBartenderApp
 {
     public static class EmailHelper
     {
-        public static void SendEmailAsync(string filePath, string subject = "Shift Report")
+        public static void SendEmailAsync(string filePath, string subject = "Report")
+            => SendEmailAsync(new List<string> { filePath }, subject);
+
+        public static void SendEmailAsync(List<string> filePaths, string subject = "Report")
         {
             Task.Run(() =>
             {
                 try
                 {
-                    if (!File.Exists(filePath)) return;
-
                     var (sender, password, receiver) = DatabaseHelper.GetEmailSettings();
-
                     if (string.IsNullOrWhiteSpace(sender) ||
                         string.IsNullOrWhiteSpace(password) ||
-                        string.IsNullOrWhiteSpace(receiver))
-                        return;
+                        string.IsNullOrWhiteSpace(receiver)) return;
 
-                    MailMessage mail = new MailMessage();
+                    var mail = new MailMessage();
                     mail.From = new MailAddress(sender);
                     mail.To.Add(receiver);
                     mail.Subject = subject;
-                    mail.Body = $"Shift report attached.\nGenerated: {DateTime.Now:dd-MM-yyyy HH:mm:ss}";
+                    mail.Body = $"Report attached.\nGenerated: {DateTime.Now:dd-MM-yyyy HH:mm:ss}";
 
-                    FileStream fs = new FileStream(
-                        filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    mail.Attachments.Add(new Attachment(fs, "report.csv", "text/csv"));
+                    var streams = new List<FileStream>();
+                    foreach (var path in filePaths)
+                    {
+                        if (!File.Exists(path)) continue;
+                        var fs = new FileStream(path, FileMode.Open,
+                            FileAccess.Read, FileShare.ReadWrite);
+                        streams.Add(fs);
+                        string ext = Path.GetExtension(path).ToLower();
+                        string mime = ext == ".pdf" ? "application/pdf" : "text/csv";
+                        mail.Attachments.Add(new Attachment(fs, Path.GetFileName(path), mime));
+                    }
 
-                    SmtpClient smtp = new SmtpClient("smtp.gmail.com", 587);
-                    smtp.Credentials = new NetworkCredential(sender, password);
-                    smtp.EnableSsl = true;
+                    var smtp = new SmtpClient("smtp.gmail.com", 587)
+                    {
+                        Credentials = new NetworkCredential(sender, password),
+                        EnableSsl = true
+                    };
                     smtp.Send(mail);
-                    fs.Close();
+
+                    foreach (var fs in streams) fs.Close();
                 }
                 catch (Exception ex)
                 {

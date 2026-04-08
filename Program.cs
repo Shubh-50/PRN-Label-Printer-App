@@ -1,29 +1,23 @@
-using System;
-using System.Windows.Forms;
-
 namespace BarcodeBartenderApp
 {
     internal static class Program
     {
+        /// <summary>
+        ///  The main entry point for the application.
+        ///  Always shows the Login form first — no auto-login.
+        /// </summary>
         [STAThread]
         static void Main()
         {
-            try
+            ApplicationConfiguration.Initialize();
+            DatabaseHelper.Initialize();
+
+            // Show login form on startup — user must authenticate
+            var login = new LoginForm();
+            if (login.ShowDialog() == System.Windows.Forms.DialogResult.OK
+                && !string.IsNullOrEmpty(login.LoggedUser))
             {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                DatabaseHelper.Initialize();
-                LoginForm login = new LoginForm();
-                if (login.ShowDialog() == DialogResult.OK)
-                    Application.Run(new Form1(login.LoggedUser));
-                else
-                    Application.Exit();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Startup Error: " + ex.Message);
-                File.AppendAllText("error.log",
-                    $"[{DateTime.Now}] Startup Error: {ex.Message}\n");
+                System.Windows.Forms.Application.Run(new Form1(login.LoggedUser));
             }
         }
     }
